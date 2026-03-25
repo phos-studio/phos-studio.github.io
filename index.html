@@ -1,0 +1,940 @@
+<!-- OPTIMISATION : Convertir les images PNG/JPG en WebP via https://squoosh.app pour réduire le poids -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phôs Studio — Création Visuelle</title>
+  <meta name="description" content="Phôs Studio crée des visuels sur mesure pour les marques et entrepreneurs. Direction artistique, identité visuelle et contenu digital. Contactez-nous pour vos projets.">
+  <meta name="keywords" content="création visuelle IA, visuels Midjourney, direction artistique, contenu réseaux sociaux, identité visuelle, Phôs Studio">
+  <meta property="og:title" content="Phôs Studio — Création Visuelle">
+  <meta property="og:description" content="Des visuels sur mesure pour donner à votre marque une identité qui marque les esprits.">
+  <meta property="og:type" content="website">
+  <!-- Créer une image og-image.jpg de 1200x630px avec le logo Phôs Studio -->
+  <meta property="og:image" content="og-image.jpg">
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%231a1a1a'/><text x='50' y='72' font-size='68' text-anchor='middle' fill='%23b5a48a' font-family='Georgia,serif' font-style='italic'>P</text></svg>">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,200;9..40,300;9..40,400&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: #f5f5f3;
+      color: #1a1a1a;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      line-height: 1.65;
+      overflow-x: hidden;
+    }
+    @media (hover: hover) { body { cursor: none; } }
+
+    /* ============================================================
+       CURSOR — single dot with lag, no glow
+    ============================================================ */
+    .cursor {
+      position: fixed;
+      width: 16px;
+      height: 16px;
+      background: rgba(15, 15, 15, 0.3);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: width .2s ease, height .2s ease;
+    }
+    @media (hover: none) { .cursor { display: none; } }
+
+    /* ============================================================
+       NAVIGATION
+    ============================================================ */
+    nav {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 1000;
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 clamp(22px, 5vw, 80px);
+      transition: background .4s ease, border-color .4s ease;
+      border-bottom: 1px solid transparent;
+    }
+    nav.scrolled {
+      background: rgba(245,245,243,.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom-color: rgba(0,0,0,.05);
+    }
+    .nav-left { display: flex; align-items: center; gap: 18px; }
+    .nav-logo {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 200;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: #1a1a1a;
+      text-decoration: none;
+    }
+    .nav-logo em { color: #b5a48a; font-style: normal; }
+    .nav-links { display: flex; gap: 36px; list-style: none; }
+    .nav-links a {
+      font-size: 11px;
+      font-weight: 300;
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: #555;
+      text-decoration: none;
+      position: relative;
+      transition: color .3s;
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px; left: 0;
+      width: 0; height: 1px;
+      background: #1a1a1a;
+      transition: width .3s ease;
+    }
+    .nav-links a:hover { color: #1a1a1a; }
+    .nav-links a:hover::after { width: 100%; }
+
+    /* Hamburger */
+    .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
+    .hamburger span { display: block; width: 22px; height: 1px; background: #1a1a1a; transition: all .3s; }
+    .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(4px, 4px); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(4px, -4px); }
+
+    @media (max-width: 768px) {
+      .hamburger { display: flex; }
+      .nav-links {
+        display: none; position: fixed; top: 66px; inset-inline: 0;
+        background: rgba(245,245,243,.97); backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        flex-direction: column; align-items: center; gap: 26px;
+        padding: 36px 24px; border-bottom: 1px solid rgba(0,0,0,.05);
+      }
+      .nav-links.open { display: flex; }
+      .nav-links a { font-size: 12px; }
+    }
+
+    /* ============================================================
+       HERO
+    ============================================================ */
+    #hero {
+      position: relative;
+      height: 100vh;
+      min-height: 560px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      overflow: hidden;
+    }
+    #heroCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      user-select: none;
+      animation: hero-fadein 2.6s cubic-bezier(.16,1,.3,1) both;
+    }
+    @keyframes hero-fadein {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .hero-phos {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(50px, 8vw, 90px);
+      font-weight: 200;
+      letter-spacing: 18px;
+      line-height: 1;
+      color: #1a1a1a;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    .hero-studio {
+      display: block;
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(14px, 2.2vw, 26px);
+      font-weight: 200;
+      letter-spacing: 15px;
+      color: #aaa;
+      text-transform: uppercase;
+      margin-top: 14px;
+    }
+    .hero-sub {
+      display: block;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 200;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      color: #888;
+      margin-top: 32px;
+    }
+
+
+    /* ============================================================
+       COMMON SECTION STYLES
+    ============================================================ */
+    section { padding: clamp(90px, 12vw, 160px) clamp(22px, 6.5vw, 110px); }
+    .section-eyebrow {
+      display: block;
+      font-size: 10px; font-weight: 300;
+      letter-spacing: .22em; text-transform: uppercase;
+      color: #bbb; margin-bottom: 14px;
+    }
+    .section-title {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(22px, 3.5vw, 40px);
+      font-weight: 200;
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      color: #1a1a1a;
+      margin-bottom: clamp(40px, 6vw, 72px);
+    }
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity .9s cubic-bezier(.16,1,.3,1), transform .9s cubic-bezier(.16,1,.3,1);
+    }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* ============================================================
+       PORTFOLIO
+    ============================================================ */
+    #projets { background: #f5f5f3; }
+    .portfolio-header { margin-bottom: clamp(28px, 4.5vw, 52px); }
+    .masonry-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      padding: 0 clamp(40px, 6vw, 80px);
+    }
+    .masonry-item {
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      border: 1px solid rgba(0,0,0,.06);
+      background: #edecea;
+      transition: transform .45s cubic-bezier(.16,1,.3,1);
+    }
+    .masonry-item:hover { transform: translateY(-3px); }
+    .masonry-item:nth-child(1) { grid-column: span 2; height: 320px; }
+    .masonry-item:nth-child(2) { grid-column: span 1; height: 320px; }
+    .masonry-item:nth-child(3) { height: 280px; }
+    .masonry-item:nth-child(4) { height: 280px; }
+    .masonry-item:nth-child(5) { height: 280px; }
+    .pf-img {
+      display: block; width: 100%; height: 100%;
+      object-fit: cover; object-position: center;
+      border-radius: 8px;
+      transition: transform .55s cubic-bezier(.16,1,.3,1);
+    }
+    .masonry-item:hover .pf-img { transform: scale(1.02); }
+
+    .masonry-label {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 55%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .4s ease;
+      border-radius: 8px;
+    }
+    .masonry-item:hover .masonry-label { opacity: 1; }
+    .masonry-label span {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(11px, 1.4vw, 14px);
+      font-weight: 200;
+      color: #fff;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      line-height: 1.3;
+      text-align: left;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.6);
+    }
+
+    @media (max-width: 768px) {
+      .masonry-grid { grid-template-columns: 1fr 1fr; padding: 0 clamp(16px, 4vw, 40px); }
+      .masonry-item:nth-child(1) { grid-column: span 2; height: 240px; }
+      .masonry-item:nth-child(2) { height: 200px; }
+      .masonry-item:nth-child(3) { height: 200px; }
+      .masonry-item:nth-child(4) { height: 200px; }
+      .masonry-item:nth-child(5) { grid-column: span 2; height: 200px; }
+    }
+    @media (max-width: 480px) {
+      .masonry-grid { grid-template-columns: 1fr; padding: 0; }
+      .masonry-item:nth-child(n) { grid-column: span 1; height: 220px; }
+    }
+
+    /* ============================================================
+       SERVICES — liste avec séparateurs
+    ============================================================ */
+    #services { background: #f0efed; position: relative; overflow: hidden; }
+    #servicesCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    #services .wrap { position: relative; z-index: 1; }
+    .services-list {
+      border-top: 1px solid rgba(0,0,0,.08);
+      margin-bottom: 52px;
+    }
+    .service-item {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 0 40px;
+      padding: clamp(26px, 3.5vw, 42px) 0;
+      border-bottom: 1px solid rgba(0,0,0,.06);
+      align-items: start;
+    }
+    .service-num {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px; font-weight: 200;
+      letter-spacing: 3px; color: #ccc; padding-top: 6px;
+      text-transform: uppercase;
+    }
+    .service-name {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(16px, 1.8vw, 21px);
+      font-weight: 200;
+      color: #1a1a1a; margin-bottom: 8px; letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    .service-desc { font-size: 13px; font-weight: 300; color: #999; line-height: 1.72; }
+    .tools-band {
+      display: flex; align-items: center;
+      gap: clamp(14px, 3vw, 40px); flex-wrap: wrap;
+    }
+    .tool-label {
+      font-size: 10px; font-weight: 300;
+      letter-spacing: .18em; text-transform: uppercase; color: #bbb;
+    }
+    .tool-sep { width: 3px; height: 3px; border-radius: 50%; background: #ddd; flex-shrink: 0; }
+    @media (max-width: 600px) {
+      .service-item { grid-template-columns: 1fr; gap: 8px; }
+      .service-num  { display: none; }
+    }
+
+    /* ============================================================
+       ABOUT
+    ============================================================ */
+    #apropos { text-align: center; position: relative; overflow: hidden; }
+    #aproposCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    .about-inner { max-width: 740px; margin: 0 auto; position: relative; z-index: 1; }
+    .about-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(14px, 1.6vw, 18px);
+      font-weight: 300;
+      line-height: 1.9; color: #666; letter-spacing: .02em;
+    }
+
+    /* ============================================================
+       TESTIMONIAL
+    ============================================================ */
+    #temoignage { background: #f0efed; text-align: center; position: relative; overflow: hidden; }
+    #temoignageCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    .testimonial-inner { max-width: 680px; margin: 0 auto; position: relative; z-index: 1; }
+    .testi-quote {
+      font-family: 'DM Sans', sans-serif;
+      font-size: clamp(14px, 1.6vw, 18px);
+      font-weight: 300;
+      line-height: 1.9; color: #2a2a2a;
+      margin-bottom: 28px; letter-spacing: .02em;
+    }
+    .testi-author {
+      font-size: 10.5px; font-weight: 300;
+      letter-spacing: .2em; text-transform: uppercase; color: #bbb;
+    }
+    .testi-author strong { color: #b5a48a; font-weight: 300; }
+
+    /* ============================================================
+       CONTACT
+    ============================================================ */
+    #contact { position: relative; overflow: hidden; }
+    #contactCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+    .contact-inner { max-width: 600px; margin: 0 auto; text-align: center; position: relative; z-index: 1; }
+    .contact-form { display: flex; flex-direction: column; gap: 24px; margin-bottom: 44px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } }
+    .form-field { display: flex; flex-direction: column; gap: 8px; }
+    .form-field label {
+      font-size: 10px; font-weight: 300;
+      letter-spacing: .16em; text-transform: uppercase; color: #888;
+    }
+    .form-field input, .form-field textarea {
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 300;
+      color: #1a1a1a; background: transparent; border: none;
+      border-bottom: 1px solid #e4e4e4; padding: 12px 0; width: 100%;
+      outline: none; transition: border-color .3s;
+      -webkit-appearance: none; border-radius: 0;
+    }
+    .form-field input:focus, .form-field textarea:focus { border-bottom-color: #1a1a1a; }
+    .form-field textarea { resize: none; height: 96px; line-height: 1.6; }
+    .form-field input::placeholder, .form-field textarea::placeholder { color: #aaa; font-weight: 300; }
+
+    /* Ghost button — outline → fill on hover */
+    .btn-send {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 10.5px; font-weight: 300;
+      letter-spacing: .22em; text-transform: uppercase;
+      color: #1a1a1a; background: transparent;
+      border: 1px solid rgba(0,0,0,.22);
+      padding: 15px 40px; border-radius: 60px;
+      cursor: pointer; align-self: center;
+      transition: background .3s, color .3s, border-color .3s;
+    }
+    .btn-send:hover { background: #1a1a1a; color: #f5f5f3; border-color: #1a1a1a; }
+
+    .contact-links { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+    .contact-links a {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 300; letter-spacing: .04em;
+      color: #777; text-decoration: none; transition: color .3s;
+    }
+    .contact-links a:hover { color: #1a1a1a; }
+    .contact-links svg { width: 14px; height: 14px; opacity: .4; }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    footer {
+      border-top: 1px solid rgba(0,0,0,.06);
+      padding: 24px clamp(22px, 5vw, 80px);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-logo {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 200;
+      letter-spacing: 6px; text-transform: uppercase; color: #1a1a1a;
+    }
+    .footer-logo em { color: #b5a48a; font-style: normal; }
+    .footer-copy { font-size: 11px; font-weight: 300; letter-spacing: .05em; color: #ccc; }
+
+    /* ============================================================
+       INSTAGRAM FAB — petit, discret
+    ============================================================ */
+    .ig-fab {
+      position: fixed; bottom: 28px; right: 28px; z-index: 900;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(245,245,243,.88);
+      border: 1px solid rgba(0,0,0,.12);
+      display: grid; place-items: center; text-decoration: none;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity .5s ease, transform .5s ease, background .3s, border-color .3s;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    .ig-fab.visible { opacity: 1; transform: none; }
+    .ig-fab:hover { background: #fff; border-color: rgba(0,0,0,.22); }
+    .ig-fab svg { width: 17px; height: 17px; color: #888; }
+    @media (max-width: 768px) { .ig-fab { bottom: 18px; right: 16px; } }
+
+    /* ============================================================
+       UTILITY
+    ============================================================ */
+    .wrap { max-width: 1380px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+
+  <!-- Cursor -->
+  <div class="cursor" id="cursor"></div>
+
+  <!-- ════════════════════════════════════════
+       NAVIGATION
+  ════════════════════════════════════════ -->
+  <nav id="navbar">
+    <div class="nav-left">
+      <a href="#hero" class="nav-logo">Phôs <em>Studio</em></a>
+    </div>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#projets"  onclick="closeMobileMenu()">Projets</a></li>
+      <li><a href="#services" onclick="closeMobileMenu()">Services</a></li>
+      <li><a href="#apropos"  onclick="closeMobileMenu()">À propos</a></li>
+      <li><a href="#contact"  onclick="closeMobileMenu()">Contact</a></li>
+    </ul>
+    <button class="hamburger" id="hamburger" aria-label="Menu" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </button>
+  </nav>
+
+  <!-- ════════════════════════════════════════
+       HERO
+  ════════════════════════════════════════ -->
+  <section id="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-content">
+      <h1>
+        <span class="hero-phos">Phôs</span>
+        <span class="hero-studio">Studio</span>
+        <span class="hero-sub">Création visuelle</span>
+      </h1>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════
+       PORTFOLIO
+  ════════════════════════════════════════ -->
+  <section id="projets">
+    <div class="wrap">
+
+      <div class="portfolio-header reveal">
+        <span class="section-eyebrow">Projets</span>
+        <h2 class="section-title" style="margin-bottom:0">Portfolio</h2>
+      </div>
+
+      <div class="masonry-grid reveal">
+
+        <div class="masonry-item">
+          <img class="pf-img" src="femme-chaise-pliantev2.png" alt="Douka Paris — Campagne Été">
+          <div class="masonry-label"><span>Douka Paris — Campagne Été</span></div>
+        </div>
+
+        <div class="masonry-item">
+          <img class="pf-img" src="femme-robe-noire-profil.png" alt="Douka Paris — Haute Couture" style="object-position: center 20%;">
+          <div class="masonry-label"><span>Douka Paris — Haute Couture</span></div>
+        </div>
+
+        <div class="masonry-item">
+          <img class="pf-img" src="fauteuil-interieur-beige.png" alt="Décoration Intérieure" style="object-position: center 80%;">
+          <div class="masonry-label"><span>Décoration Intérieure</span></div>
+        </div>
+
+        <div class="masonry-item">
+          <img class="pf-img" src="parfum-macro.png" alt="Visuel Produit — Parfum" style="object-position: center 18%;">
+          <div class="masonry-label"><span>Visuel Produit — Parfum</span></div>
+        </div>
+
+        <div class="masonry-item">
+          <img class="pf-img" src="salon-plage-lac.png" alt="Direction Artistique — Mobilier" style="object-position: center 60%;">
+          <div class="masonry-label"><span>Direction Artistique — Mobilier</span></div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════
+       SERVICES
+  ════════════════════════════════════════ -->
+  <section id="services">
+    <canvas id="servicesCanvas"></canvas>
+    <div class="wrap">
+      <span class="section-eyebrow reveal">Services</span>
+      <h2 class="section-title reveal">Ce que nous créons</h2>
+
+      <div class="services-list">
+
+        <div class="service-item reveal" style="transition-delay:.0s">
+          <span class="service-num">01</span>
+          <div>
+            <h3 class="service-name">Visuels Sur Mesure</h3>
+            <p class="service-desc">Création de visuels uniques et percutants pour vos réseaux sociaux et campagnes.</p>
+          </div>
+        </div>
+
+        <div class="service-item reveal" style="transition-delay:.1s">
+          <span class="service-num">02</span>
+          <div>
+            <h3 class="service-name">Identité Visuelle</h3>
+            <p class="service-desc">Logo, charte graphique et univers de marque complet, conçu et finalisé à la main.</p>
+          </div>
+        </div>
+
+        <div class="service-item reveal" style="transition-delay:.2s">
+          <span class="service-num">03</span>
+          <div>
+            <h3 class="service-name">Contenu Digital</h3>
+            <p class="service-desc">Packs de contenus visuels prêts à publier, optimisés pour Instagram, TikTok et LinkedIn.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="tools-band reveal">
+        <span class="tool-label">Midjourney</span>
+        <div class="tool-sep"></div>
+        <span class="tool-label">Photoshop</span>
+        <div class="tool-sep"></div>
+        <span class="tool-label">Adobe Illustrator</span>
+        <div class="tool-sep"></div>
+        <span class="tool-label">Lightroom</span>
+        <div class="tool-sep"></div>
+        <span class="tool-label">After Effects</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════
+       À PROPOS
+  ════════════════════════════════════════ -->
+  <section id="apropos">
+    <canvas id="aproposCanvas"></canvas>
+    <div class="about-inner">
+      <span class="section-eyebrow reveal" style="text-align:center;display:block">À propos</span>
+      <h2 class="section-title reveal" style="text-align:center">Notre vision</h2>
+      <p class="about-text reveal">
+        Nous créons des visuels sur mesure pour les marques qui veulent se démarquer, en combinant la puissance de l'IA avec une direction artistique soignée. Chaque projet est pensé pour capturer l'essence de votre identité et la traduire en images mémorables.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════
+       CONTACT
+  ════════════════════════════════════════ -->
+  <section id="contact">
+    <canvas id="contactCanvas"></canvas>
+    <div class="contact-inner">
+      <span class="section-eyebrow reveal">Contact</span>
+      <h2 class="section-title reveal">Parlons de<br>votre projet</h2>
+
+      <form action="https://formspree.io/f/mlgpqepq" method="POST" class="contact-form reveal" id="contactForm">
+        <input type="hidden" name="_next" value="merci.html">
+        <div class="form-row">
+          <div class="form-field">
+            <label for="fname">Nom</label>
+            <input type="text" id="fname" name="name" placeholder="Votre nom" required>
+          </div>
+          <div class="form-field">
+            <label for="femail">Email</label>
+            <input type="email" id="femail" name="email" placeholder="votre@email.com" required>
+          </div>
+        </div>
+        <div class="form-field">
+          <label for="fmsg">Message</label>
+          <textarea id="fmsg" name="message" placeholder="Décrivez votre projet..." required></textarea>
+        </div>
+        <button type="submit" class="btn-send" id="btnSend">Envoyer</button>
+      </form>
+
+      <div class="contact-links reveal">
+        <a href="mailto:contact@phos-studio.com">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          contact@phos-studio.com
+        </a>
+        <a href="https://instagram.com/phos_studi0" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="2" y="2" width="20" height="20" rx="5"/>
+            <circle cx="12" cy="12" r="4"/>
+            <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/>
+          </svg>
+          @phos_studi0
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════
+       TÉMOIGNAGE
+  ════════════════════════════════════════ -->
+  <section id="temoignage">
+    <canvas id="temoignageCanvas"></canvas>
+    <div class="testimonial-inner reveal">
+      <blockquote class="testi-quote">
+        «&nbsp;Phôs Studio a su capturer parfaitement l'univers de notre marque.
+        Les visuels sont d'une qualité exceptionnelle et ont transformé notre présence
+        sur les réseaux sociaux.&nbsp;»
+      </blockquote>
+      <p class="testi-author">
+        <strong>Douka Paris</strong>&ensp;—&ensp;Marque de mode
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════ -->
+  <footer>
+    <div class="footer-logo">Phôs <em>Studio</em></div>
+    <span class="footer-copy">© 2026</span>
+  </footer>
+
+  <!-- ════════════════════════════════════════
+       INSTAGRAM FAB
+  ════════════════════════════════════════ -->
+  <a href="https://ig.me/m/phos_studi0" target="_blank" rel="noopener"
+     class="ig-fab" id="igFab" aria-label="Message direct Instagram">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <rect x="2" y="2" width="20" height="20" rx="5"/>
+      <circle cx="12" cy="12" r="4"/>
+      <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/>
+    </svg>
+  </a>
+
+  <!-- ════════════════════════════════════════
+       JAVASCRIPT
+  ════════════════════════════════════════ -->
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const isTouch = () => !window.matchMedia('(hover: hover)').matches;
+
+    /* ── CURSOR — single dot with lag ── */
+    (function initCursor() {
+      if (isTouch()) return;
+      const dot = $('cursor');
+      let tx = 0, ty = 0, cx = 0, cy = 0;
+      document.addEventListener('mousemove', e => { tx = e.clientX; ty = e.clientY; });
+      (function loop() {
+        cx += (tx - cx) * .12;
+        cy += (ty - cy) * .12;
+        dot.style.left = cx + 'px';
+        dot.style.top  = cy + 'px';
+        requestAnimationFrame(loop);
+      })();
+    })();
+
+    /* ── NAVBAR SCROLL + IG BUTTON ── */
+    const navbar = $('navbar');
+    const igFab  = $('igFab');
+    window.addEventListener('scroll', () => {
+      const sy = window.scrollY;
+      navbar.classList.toggle('scrolled', sy > 40);
+      igFab.classList.toggle('visible',   sy > 280);
+    }, { passive: true });
+
+    /* ── MOBILE MENU ── */
+    function toggleMenu() {
+      const links = $('navLinks');
+      const btn   = $('hamburger');
+      const open  = links.classList.toggle('open');
+      btn.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', open);
+    }
+    function closeMobileMenu() {
+      $('navLinks').classList.remove('open');
+      $('hamburger').classList.remove('open');
+    }
+
+    /* ── SCROLL REVEAL ── */
+    const revealObs = new IntersectionObserver(entries => {
+      entries.forEach(({ target, isIntersecting }) => {
+        if (isIntersecting) { target.classList.add('visible'); revealObs.unobserve(target); }
+      });
+    }, { threshold: 0.09, rootMargin: '0px 0px -36px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => revealObs.observe(el));
+
+    /* ── SUBTLE PARALLAX ── */
+    if (!isTouch()) {
+      const parallaxEls = document.querySelectorAll('.section-title');
+      const wh = window.innerHeight;
+      window.addEventListener('scroll', () => {
+        const sy = window.scrollY;
+        parallaxEls.forEach(el => {
+          const rect = el.getBoundingClientRect();
+          const off  = (rect.top + rect.height / 2 - wh / 2) * 0.04;
+          el.style.transform = `translateY(${off}px)`;
+        });
+      }, { passive: true });
+    }
+
+  </script>
+
+  <!-- ════════════════════════════════════════
+       THREE.JS BACKGROUNDS
+  ════════════════════════════════════════ -->
+  <script>
+  function makeWireframeScene(canvasId, defs, opts) {
+    if (typeof THREE === 'undefined') return;
+    const canvas  = document.getElementById(canvasId);
+    if (!canvas) return;
+    const section = canvas.parentElement;
+    let W = section.offsetWidth;
+    let H = section.offsetHeight;
+    const fov         = (opts && opts.fov)         ? opts.fov         : 55;
+    const cameraZ     = (opts && opts.cameraZ)     ? opts.cameraZ     : 11;
+    const interactive = (opts && opts.interactive) ? opts.interactive : false;
+    const isTouch     = !window.matchMedia('(hover: hover)').matches;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(W, H);
+    renderer.setClearColor(0x000000, 0);
+
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(fov, W / H, 0.1, 100);
+    camera.position.z = cameraZ;
+
+    const meshes = defs.map(d => {
+      const mat  = new THREE.MeshBasicMaterial({ color: 0xc8b8a2, wireframe: true, transparent: true, opacity: d.opacity });
+      const mesh = new THREE.Mesh(d.geo, mat);
+      mesh.position.set(...d.pos);
+      mesh.userData.spd      = d.spd;
+      mesh.userData.baseX    = d.pos[0];
+      mesh.userData.baseY    = d.pos[1];
+      mesh.userData.phase    = Math.random() * Math.PI * 2;
+      mesh.userData.floatAmp = 0.28 + Math.random() * 0.22;
+      mesh.userData.floatSpd = 0.30 + Math.random() * 0.20;
+      scene.add(mesh);
+      return mesh;
+    });
+
+    /* Mouse tracking (hero only, non-touch) */
+    let mouseWorld = { x: 0, y: 0 };
+    let mouseActive = false;
+    let mouseTimer  = null;
+
+    if (interactive && !isTouch) {
+      section.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const nx = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+        const ny = ((e.clientY - rect.top)  / rect.height) * -2 + 1;
+        /* Unproject to z=0 world plane */
+        const vec = new THREE.Vector3(nx, ny, 0.5).unproject(camera);
+        const dir = vec.sub(camera.position).normalize();
+        const t   = -camera.position.z / dir.z;
+        mouseWorld.x = camera.position.x + dir.x * t;
+        mouseWorld.y = camera.position.y + dir.y * t;
+        mouseActive = true;
+        clearTimeout(mouseTimer);
+        mouseTimer = setTimeout(() => { mouseActive = false; }, 1800);
+      }, { passive: true });
+
+      section.addEventListener('mouseleave', () => {
+        clearTimeout(mouseTimer);
+        mouseActive = false;
+      });
+    }
+
+    let clock = 0;
+    let rafId  = null;
+
+    function animate() {
+      rafId   = requestAnimationFrame(animate);
+      clock  += 0.012;
+      meshes.forEach(m => {
+        m.rotation.x += m.userData.spd[0];
+        m.rotation.y += m.userData.spd[1];
+        m.rotation.z += m.userData.spd[2];
+
+        const floatY = m.userData.baseY
+          + Math.sin(clock * m.userData.floatSpd + m.userData.phase) * m.userData.floatAmp;
+
+        if (interactive && !isTouch && mouseActive) {
+          const dx   = mouseWorld.x - m.position.x;
+          const dy   = mouseWorld.y - m.position.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const pull = Math.min(0.3, 3.0 / (dist + 4.0));
+          const lerpF = 0.015 * pull;
+          m.position.x += (mouseWorld.x - m.position.x) * lerpF;
+          m.position.y += (mouseWorld.y - m.position.y) * lerpF;
+        } else {
+          m.position.x += (m.userData.baseX - m.position.x) * 0.025;
+          m.position.y += (floatY           - m.position.y) * 0.025;
+        }
+      });
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    /* Pause when off-screen */
+    new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { if (!rafId) animate(); }
+      else { cancelAnimationFrame(rafId); rafId = null; }
+    }, { threshold: 0 }).observe(section);
+
+    /* Resize */
+    window.addEventListener('resize', () => {
+      W = section.offsetWidth;
+      H = section.offsetHeight;
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+      renderer.setSize(W, H);
+    }, { passive: true });
+  }
+
+  /* ── Hero — formes 2x, réparties sur tout l'écran ── */
+  makeWireframeScene('heroCanvas', [
+    { geo: new THREE.SphereGeometry(3.2, 10, 7),      pos: [-12.0,  4.0, -4], spd: [0.0022, 0.0035, 0.0010], opacity: 0.18 },
+    { geo: new THREE.TorusGeometry(2.8, 0.65, 8, 20), pos: [ 10.5, -3.0, -5], spd: [0.0035, 0.0015, 0.0048], opacity: 0.16 },
+    { geo: new THREE.IcosahedronGeometry(2.5, 0),      pos: [  1.0,  7.0, -7], spd: [0.0018, 0.0050, 0.0025], opacity: 0.20 },
+    { geo: new THREE.OctahedronGeometry(2.2, 0),       pos: [-10.0, -5.0, -3], spd: [0.0042, 0.0020, 0.0015], opacity: 0.15 },
+    { geo: new THREE.TorusGeometry(2.0, 0.55, 7, 18), pos: [  8.5,  5.5, -4], spd: [0.0028, 0.0058, 0.0020], opacity: 0.17 },
+    { geo: new THREE.IcosahedronGeometry(1.6, 1),      pos: [ -3.5, -7.0, -3], spd: [0.0050, 0.0018, 0.0033], opacity: 0.14 },
+    { geo: new THREE.SphereGeometry(1.9, 9, 7),        pos: [ 13.0,  1.0, -5], spd: [0.0015, 0.0032, 0.0042], opacity: 0.16 },
+    { geo: new THREE.OctahedronGeometry(1.4, 0),       pos: [ -7.0,  6.5, -4], spd: [0.0038, 0.0025, 0.0055], opacity: 0.15 },
+  ], { fov: 72, cameraZ: 14, interactive: true });
+
+  /* ── À propos ── */
+  makeWireframeScene('aproposCanvas', [
+    { geo: new THREE.TorusGeometry(3.3, 0.75, 8, 20),  pos: [-14.0,  5.0, -5], spd: [0.0028, 0.0015, 0.0040], opacity: 0.14 },
+    { geo: new THREE.OctahedronGeometry(2.8, 0),        pos: [-11.0, -7.0, -4], spd: [0.0018, 0.0044, 0.0022], opacity: 0.15 },
+    { geo: new THREE.IcosahedronGeometry(2.5, 0),       pos: [-13.0,  1.0, -6], spd: [0.0035, 0.0020, 0.0050], opacity: 0.13 },
+    { geo: new THREE.SphereGeometry(2.2, 10, 7),        pos: [ -5.0,  9.0, -5], spd: [0.0022, 0.0030, 0.0018], opacity: 0.14 },
+    { geo: new THREE.OctahedronGeometry(2.0, 0),        pos: [  5.0, -9.0, -4], spd: [0.0040, 0.0025, 0.0035], opacity: 0.13 },
+    { geo: new THREE.SphereGeometry(2.7, 9, 7),         pos: [ 11.0,  4.0, -5], spd: [0.0022, 0.0038, 0.0015], opacity: 0.14 },
+    { geo: new THREE.TorusGeometry(2.1, 0.60, 7, 18),  pos: [ 13.5, -2.0, -4], spd: [0.0048, 0.0018, 0.0032], opacity: 0.14 },
+    { geo: new THREE.IcosahedronGeometry(2.4, 1),       pos: [ 14.0,  8.0, -6], spd: [0.0020, 0.0050, 0.0025], opacity: 0.12 },
+    { geo: new THREE.TorusGeometry(1.8, 0.50, 8, 18),  pos: [ -3.0, -9.5, -3], spd: [0.0032, 0.0022, 0.0045], opacity: 0.13 },
+    { geo: new THREE.IcosahedronGeometry(1.9, 0),       pos: [  0.0,  9.5, -7], spd: [0.0015, 0.0055, 0.0020], opacity: 0.12 },
+  ], { fov: 80, cameraZ: 16 });
+
+  /* ── Témoignage ── */
+  makeWireframeScene('temoignageCanvas', [
+    { geo: new THREE.IcosahedronGeometry(3.0, 0),       pos: [-13.0,  5.0, -5], spd: [0.0025, 0.0042, 0.0018], opacity: 0.15 },
+    { geo: new THREE.TorusGeometry(2.6, 0.70, 8, 20),  pos: [-11.0, -6.0, -4], spd: [0.0040, 0.0018, 0.0035], opacity: 0.14 },
+    { geo: new THREE.OctahedronGeometry(2.4, 0),        pos: [-14.5,  1.0, -6], spd: [0.0018, 0.0038, 0.0022], opacity: 0.13 },
+    { geo: new THREE.SphereGeometry(2.2, 10, 7),        pos: [ -4.0,  9.0, -5], spd: [0.0030, 0.0025, 0.0040], opacity: 0.13 },
+    { geo: new THREE.TorusGeometry(1.9, 0.55, 7, 16),  pos: [  4.0, -9.5, -4], spd: [0.0035, 0.0020, 0.0050], opacity: 0.14 },
+    { geo: new THREE.SphereGeometry(2.8, 9, 7),         pos: [ 12.0,  4.5, -5], spd: [0.0030, 0.0022, 0.0048], opacity: 0.14 },
+    { geo: new THREE.TorusGeometry(2.2, 0.65, 8, 18),  pos: [ 10.0, -5.5, -4], spd: [0.0048, 0.0018, 0.0032], opacity: 0.15 },
+    { geo: new THREE.IcosahedronGeometry(2.0, 1),       pos: [ 14.0,  8.0, -6], spd: [0.0020, 0.0050, 0.0025], opacity: 0.12 },
+    { geo: new THREE.OctahedronGeometry(1.8, 0),        pos: [  1.0, -9.0, -3], spd: [0.0038, 0.0028, 0.0042], opacity: 0.13 },
+    { geo: new THREE.IcosahedronGeometry(2.5, 0),       pos: [  0.0,  9.5, -7], spd: [0.0015, 0.0045, 0.0020], opacity: 0.12 },
+  ], { fov: 80, cameraZ: 16 });
+
+  /* ── Contact ── */
+  makeWireframeScene('contactCanvas', [
+    { geo: new THREE.TorusGeometry(1.2, 0.30, 8, 20), pos: [-7.5,  1.5, -4], spd: [0.0030, 0.0018, 0.0045], opacity: 0.16 },
+    { geo: new THREE.IcosahedronGeometry(1.1, 0),      pos: [-6.0, -1.8, -5], spd: [0.0020, 0.0048, 0.0015], opacity: 0.17 },
+    { geo: new THREE.OctahedronGeometry(0.9, 0),       pos: [-5.0,  2.8, -3], spd: [0.0015, 0.0042, 0.0030], opacity: 0.15 },
+    { geo: new THREE.SphereGeometry(1.0, 10, 7),       pos: [ 6.5,  1.0, -4], spd: [0.0038, 0.0025, 0.0012], opacity: 0.14 },
+    { geo: new THREE.TorusGeometry(0.7, 0.22, 7, 16), pos: [ 7.5, -2.0, -3], spd: [0.0055, 0.0020, 0.0038], opacity: 0.16 },
+    { geo: new THREE.IcosahedronGeometry(0.8, 1),      pos: [ 5.5,  2.5, -5], spd: [0.0025, 0.0055, 0.0020], opacity: 0.15 },
+  ]);
+
+  /* ── Services ── */
+  makeWireframeScene('servicesCanvas', [
+    { geo: new THREE.TorusGeometry(1.4, 0.35, 8, 20), pos: [-5.5,  1.5, -4], spd: [0.0035, 0.0020, 0.0050], opacity: 0.18 },
+    { geo: new THREE.IcosahedronGeometry(1.3, 0),      pos: [ 4.0,  2.5, -5], spd: [0.0025, 0.0055, 0.0018], opacity: 0.20 },
+    { geo: new THREE.SphereGeometry(1.2, 10, 7),       pos: [ 0.0, -2.8, -3], spd: [0.0042, 0.0030, 0.0015], opacity: 0.17 },
+    { geo: new THREE.OctahedronGeometry(1.1, 0),       pos: [-3.5, -1.5, -2], spd: [0.0018, 0.0048, 0.0035], opacity: 0.19 },
+    { geo: new THREE.TorusGeometry(0.8, 0.25, 7, 16), pos: [ 5.0, -0.5, -3], spd: [0.0060, 0.0022, 0.0040], opacity: 0.16 },
+    { geo: new THREE.SphereGeometry(0.9, 9, 6),        pos: [-1.5,  3.0, -4], spd: [0.0030, 0.0045, 0.0025], opacity: 0.21 },
+    { geo: new THREE.IcosahedronGeometry(0.8, 1),      pos: [ 3.5, -3.0, -2], spd: [0.0050, 0.0015, 0.0055], opacity: 0.15 },
+  ]);
+  </script>
+
+</body>
+</html>
