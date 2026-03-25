@@ -616,7 +616,6 @@
       <h2 class="section-title reveal">Parlons de<br>votre projet</h2>
 
       <form action="https://formspree.io/f/mlgpqepq" method="POST" class="contact-form reveal" id="contactForm">
-        <input type="hidden" name="_next" value="https://phos-studio.github.io/merci.html"
         <div class="form-row">
           <div class="form-field">
             <label for="fname">Nom</label>
@@ -934,6 +933,23 @@
     { geo: new THREE.SphereGeometry(0.9, 9, 6),        pos: [-1.5,  3.0, -4], spd: [0.0030, 0.0045, 0.0025], opacity: 0.21 },
     { geo: new THREE.IcosahedronGeometry(0.8, 1),      pos: [ 3.5, -3.0, -2], spd: [0.0050, 0.0015, 0.0055], opacity: 0.15 },
   ]);
+  </script>
+
+  <script>
+    /* ── Formulaire contact — fetch + redirect ── */
+    document.getElementById('contactForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const form = e.target;
+      fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json' }
+      }).then(function(response) {
+        if (response.ok) {
+          window.location.href = 'https://phos-studio.github.io/merci.html';
+        }
+      });
+    });
   </script>
 
 </body>
